@@ -560,6 +560,15 @@ INSERT INTO tmp_videoclub (id_copia,fecha_alquiler_texto,dni,nombre,apellido_1,a
     numero_identificacion VARCHAR(20) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS socios (
+    numero_socio SERIAL PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    fecha_nacimiento DATE NOT NULL,
+    telefono VARCHAR(20) NOT NULL,
+    numero_identificacion VARCHAR(20) NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS direccion (
     id_direccion SERIAL PRIMARY KEY,
     numero_socio INT NOT NULL,
@@ -589,6 +598,8 @@ CREATE TABLE IF NOT EXISTS prestamos (
     fecha_prestamo DATE NOT NULL,
     fecha_devolucion DATE NULL
 );
+
+
 
 
 --CONSTRAINTS
@@ -626,3 +637,96 @@ ALTER TABLE prestamos
 CREATE UNIQUE INDEX unique_numero_identificacion 
     ON socios(LOWER(numero_identificacion));
 
+CREATE UNIQUE INDEX idx_prestamo_copia_activo 
+ON Prestamo(id_copia) 
+WHERE fecha_devolucion IS NULL;
+
+CREATE UNIQUE INDEX idx_peliculas_titulo_unico ON peliculas(titulo);
+
+--INSERCIONES TABLAS
+
+INSERT INTO socios (nombre, apellido_1, apellido_2, fecha_nacimiento, telefono, numero_identificacion)
+SELECT DISTINCT 
+    nombre,
+    apellido_1,
+    apellido_2,
+    fecha_nacimiento::DATE,
+    telefono,
+    dni
+FROM tmp_videoclub
+WHERE dni IS NOT NULL;
+
+INSERT INTO direccion (numero_socio, codigo_postal, calle, numero, piso)
+SELECT DISTINCT 
+    s.numero_socio,
+    t.codigo_postal,
+    t.calle,
+    t.numero,
+    t.ext  
+FROM tmp_videoclub t
+INNER JOIN socios s ON s.numero_identificacion = t.dni
+WHERE t.codigo_postal IS NOT NULL 
+  AND t.calle IS NOT NULL
+  AND t.numero IS NOT NULL;
+
+INSERT INTO peliculas (titulo, genero, director, sinopsis)
+SELECT DISTINCT 
+    titulo,
+    genero,
+    director,
+    sinopsis
+FROM tmp_videoclub
+WHERE titulo IS NOT NULL
+  AND genero IS NOT NULL
+  AND director IS NOT NULL
+  AND sinopsis IS NOT NULL;
+
+INSERT INTO copias (id_copia, id_pelicula)
+SELECT DISTINCT 
+    t.id_copia,
+    p.id_pelicula
+FROM tmp_videoclub t
+INNER JOIN peliculas p ON p.titulo = t.titulo
+WHERE t.id_copia IS NOT NULL
+ORDER BY t.id_copia;
+
+INSERT INTO prestamos (id_copia, numero_socio, fecha_prestamo, fecha_devolucion)
+SELECT 
+    t.id_copia,
+    s.numero_socio,
+    t.fecha_alquiler,
+    t.fecha_devolucion
+FROM tmp_videoclub t
+INNER JOIN socios s ON s.numero_identificacion = t.dni
+WHERE t.id_copia IS NOT NULL 
+  AND t.fecha_alquiler IS NOT NULL
+ORDER BY t.fecha_alquiler;
+
+--CONSULTAS 
+
+SELECT 
+    p.titulo,
+    COUNT(c.id_copia) as copias_disponibles
+FROM peliculas p
+INNER JOIN copias c ON c.id_pelicula = p.id_pelicula
+LEFT JOIN prestamos pr ON pr.id_copia = c.id_copia 
+    AND pr.fecha_devolucion IS NULL  
+WHERE pr.id_prestamo IS NULL  
+GROUP BY p.id_pelicula, p.titulo
+HAVING COUNT(c.id_copia) > 0
+ORDER BY p.titulo;
+
+
+SELECT 
+    p.titulo,
+    c.id_copia,
+    s.nombre,
+    s.apellido_1,
+    s.apellido_2,
+    pr.fecha_prestamo
+FROM prestamos pr
+INNER JOIN copias c ON c.id_copia = pr.id_copia
+INNER JOIN peliculas p ON p.id_pelicula = c.id_pelicula
+INNER JOIN socios s ON s.numero_socio = pr.numero_socio
+WHERE pr.fecha_devolucion IS NULL
+ORDER BY p.titulo, pr.fecha_prestamo;
