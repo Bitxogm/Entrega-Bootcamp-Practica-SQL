@@ -1,7 +1,7 @@
 -- ESQUEMA
 DROP SCHEMA IF EXISTS videoclub CASCADE;
 CREATE SCHEMA videoclub;
-SET search_path TO videoclub;
+SET SCHEMA 'videoclub';
 
 --  TABLA TEMPORAL 
 CREATE TABLE tmp_videoclub (
@@ -638,7 +638,7 @@ CREATE UNIQUE INDEX unique_numero_identificacion
     ON socios(LOWER(numero_identificacion));
 
 CREATE UNIQUE INDEX idx_prestamo_copia_activo 
-ON Prestamo(id_copia) 
+ON prestamos(id_copia) 
 WHERE fecha_devolucion IS NULL;
 
 CREATE UNIQUE INDEX idx_peliculas_titulo_unico ON peliculas(titulo);
@@ -717,16 +717,3 @@ HAVING COUNT(c.id_copia) > 0
 ORDER BY p.titulo;
 
 
-SELECT 
-    p.titulo,
-    c.id_copia,
-    s.nombre,
-    s.apellido_1,
-    s.apellido_2,
-    pr.fecha_prestamo
-FROM prestamos pr
-INNER JOIN copias c ON c.id_copia = pr.id_copia
-INNER JOIN peliculas p ON p.id_pelicula = c.id_pelicula
-INNER JOIN socios s ON s.numero_socio = pr.numero_socio
-WHERE pr.fecha_devolucion IS NULL
-ORDER BY p.titulo, pr.fecha_prestamo;
